@@ -1,6 +1,6 @@
 [project]
 name = "PickeaTuPC"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pickea Tu PC will be a tool to make building your dream computer in Peru simple, quick, and affordable."
 authors = [
     {name = "CesarZHX", email = "112836949+CesarZHX@users.noreply.github.com"},

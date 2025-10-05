@@ -1,6 +1,7 @@
 from re import Pattern, compile
 
 from aiohttp import ClientSession
+from price_parser.parser import Price
 from selectolax.parser import HTMLParser
 from yarl import URL
 
@@ -18,9 +19,7 @@ PAGINATION_DIV: str = "div.tv-pagination-content"
 # TODO: Get thumbnail, price (usd and pen), name, url, stock
 
 
-async def get_sercoplus_products(
-    session: ClientSession, endpoint: str
-) -> tuple[str, ...]:
+async def get_sercoplus_items(session: ClientSession, endpoint: str) -> tuple[str, ...]:
     url: URL = SERCOPLUS_URL / endpoint
     html_parser: HTMLParser = await get_page(session, url)
     if not (pagination_div := html_parser.css_first(PAGINATION_DIV)):
@@ -28,7 +27,10 @@ async def get_sercoplus_products(
     if not (pagination := PAGINATION_PATTERN.search(pagination_div.text())):
         return tuple()
     first_in_page, last_in_page, last = map(int, pagination.groups())
-    pages = range(first_in_page, last_in_page + 1)
+    # TODO: extract all items across all pages, using pagination to kwnow when to stop.
+    items_per_page = (last_in_page + 1) - first_in_page
+    pages = last // items_per_page
     if not (items := html_parser.css(ITEM_DIV)):
-        assert html_parser.css_first(EMPTY_PAGE)
+        if not html_parser.css_first(EMPTY_PAGE):
+            raise RuntimeError("Empty page not found.")
     return tuple(item.text(separator="\n", strip=True) for item in items)

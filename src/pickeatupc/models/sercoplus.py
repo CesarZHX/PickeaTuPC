@@ -13,7 +13,6 @@ from selectolax.parser import HTMLParser
 from yarl import URL
 
 from .._config import SERCOPLUS_URL
-from ..helpers.get_page import get_page
 from ._selectors import EMPTY_PAGE, ITEM_DIV, PAGINATION_DIV
 
 _PAGINATION_PATTERN: Pattern[str] = compile(r"Mostrando\s+(\d+)-(\d+)\s+de\s+(\d+)")

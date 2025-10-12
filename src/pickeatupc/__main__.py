@@ -8,8 +8,7 @@ from .models.sercoplus import Sercoplus
 async def main() -> None:
     async with ClientSession() as session:
         sercoplus: Sercoplus = Sercoplus(session)
-        endpoint: str = "731-arma-tu-pc"
-        items = await sercoplus.search(endpoint)
+        items: tuple[str, ...] = await sercoplus.search("RAM")
     return print(*items, sep="\n")
 
 

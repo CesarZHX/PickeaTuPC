@@ -3,6 +3,7 @@
 TODO: First abstract the sercoplus logic (as a store), them the pc build logic.
 TODO: Get thumbnail, price (usd and pen), name, url and stock.
 TODO: Use get home method to get all header import urls.
+TODO: Add page number validation for query module.
 TODO: Don't Repeat Yourself.
 """
 
@@ -15,8 +16,14 @@ from selectolax.parser import HTMLParser
 from yarl import URL
 
 from ..._core.config import URLS
-from ._constants import ENHANCED_QUERY, MIN_PAGE_COUNT
-from ._selectors import EMPTY_PAGE_SECTION, ITEM_DIV, PAGINATION_ANCHOR
+from .._page_number import PageNumber
+from ._query.model import AVAILABLE_PRICE_ORDERED_QUERY, QUERY
+from ._selectors import (
+    CURRENT_PAGE_ANCHOR,
+    EMPTY_PAGE_SECTION,
+    ITEM_DIV,
+    PAGINATION_ANCHOR,
+)
 
 
 class Sercoplus:
@@ -30,15 +37,15 @@ class Sercoplus:
             raise TypeError("session is not a ClientSession.")
         self._session: ClientSession = session
 
-    def _get_query(self, page: PositiveInt = 1) -> dict[str, str]:
+    def _get_query(
+        self, page_number: PageNumber = PageNumber.minimun()
+    ) -> dict[str, str]:
         """Get query."""
-        if not isinstance(page, int) or page < 1:
-            raise TypeError("Page must be a positive integer.")
-        if page == 1:
-            return ENHANCED_QUERY
-        return dict(ENHANCED_QUERY, page=str(page))
+        if page_number.is_minimun():
+            return QUERY
+        return dict(AVAILABLE_PRICE_ORDERED_QUERY, page=str(page_number))
 
-    def _build_url(self, endpoint: str, page: PositiveInt = 1) -> URL:
+    def _build_url(self, endpoint: str, page: PageNumber = PageNumber.minimun()) -> URL:
         """Build URL."""
         url: URL = self.url / endpoint
         return url.update_query(self._get_query(page))
@@ -46,13 +53,15 @@ class Sercoplus:
     def _get_page_count(self, html: HTMLParser) -> PositiveInt:
         """Get page count."""
         if not (anchors := tuple(html.css(PAGINATION_ANCHOR))):
-            return MIN_PAGE_COUNT
+            return int(PageNumber.minimun())
         last_child_text: str = anchors[-1].text()
         page_count: int = int(last_child_text)
-        assert page_count > MIN_PAGE_COUNT
+        assert page_count > int(PageNumber.minimun())
         return page_count
 
-    def _get_search_url(self, value: str, page: PositiveInt = 1) -> URL:
+    def _get_search_url(
+        self, value: str, page: PageNumber = PageNumber.minimun()
+    ) -> URL:
         if len(value) < 3:
             raise ValueError("Value is too short.")
         url: URL = self._build_url("busqueda", page)
@@ -66,6 +75,15 @@ class Sercoplus:
             return tuple()
         return tuple(item.text(separator="\n", strip=True) for item in item_divs)
 
+    def _get_page_number(self, html: HTMLParser) -> PositiveInt:
+        """Get current page."""
+        if not (current_page_anchor := html.css_first(CURRENT_PAGE_ANCHOR)):
+            return 1
+        text: str = current_page_anchor.text()
+        number: int = int(text)
+        assert number > 0
+        return number
+
     async def _get_html(self, url: URL) -> HTMLParser:
         """Get html."""
         async with self._session.get(url, raise_for_status=True) as response:
@@ -75,6 +93,18 @@ class Sercoplus:
     async def _get_home(self) -> HTMLParser:
         """Get home."""
         return await self._get_html(self.url)
+
+    def _get_missing_page_range(self, html: HTMLParser) -> tuple[PositiveInt, ...]:
+        """Get missing page range."""
+        if (page_count := self._get_page_count(html)) == int(PageNumber.minimun()):
+            return tuple()
+        page_number: PositiveInt = self._get_page_number(html)
+        range_stop: PositiveInt = page_count + int(PageNumber.minimun())
+        page_range: range = range(int(PageNumber.minimun()), range_stop)
+        missing_range: tuple[PositiveInt, ...]
+        missing_range = tuple(i for i in page_range if i != page_number)
+        assert all(i > 0 for i in missing_range)
+        return missing_range
 
     # NOTE: Represents in page search, is generic and may be public.
     async def search(self, value: str) -> tuple[str, ...]:
@@ -87,7 +117,9 @@ class Sercoplus:
 
         page_range: range = range(2, page_count + 1)
         urls: tuple[URL, ...]
-        urls = tuple(self._get_search_url(value, page) for page in page_range)
+        urls = tuple(
+            self._get_search_url(value, PageNumber(page)) for page in page_range
+        )
 
         tasks: tuple[Task[HTMLParser], ...]
         tasks = tuple(create_task(self._get_html(url)) for url in urls)
@@ -105,7 +137,7 @@ class Sercoplus:
 
         page_range: range = range(2, page_count + 1)
         urls: tuple[URL, ...]
-        urls = tuple(self._build_url(endpoint, page) for page in page_range)
+        urls = tuple(self._build_url(endpoint, PageNumber(page)) for page in page_range)
 
         tasks: tuple[Task[HTMLParser], ...]
         tasks = tuple(create_task(self._get_html(url)) for url in urls)

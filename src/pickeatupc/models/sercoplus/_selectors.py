@@ -3,3 +3,4 @@
 ITEM_DIV: str = "article.item > div.thumbnail-container > div.grid"
 EMPTY_PAGE_SECTION: str = "section.page-not-found"
 PAGINATION_ANCHOR: str = 'ul.tv-pagination-wrapper > li > a[rel="nofollow"]'
+CURRENT_PAGE_ANCHOR: str = "li.current.tv-pagination-li > a"

@@ -1,6 +1,6 @@
 """Query module."""
 
-from pydantic import Field
+from pydantic import Field, PositiveInt
 
 from .availability import AvailabilityQuery, AvailableQuery
 from .base import FrozenQueryConstructor
@@ -12,10 +12,16 @@ class Query(FrozenQueryConstructor):
 
     availability: AvailabilityQuery = Field(default_factory=AvailabilityQuery)
     order: OrderQuery = Field(default_factory=OrderQuery)
+    page: PositiveInt = Field(default=1)
 
     def build(self) -> dict[str, str]:
         """Build query."""
-        return self.availability.build() | self.order.build()
+        query: dict[str, str] = self.availability.build() | self.order.build()
+        return query | dict(page=str(self.page))
+
+    def is_in_first_page(self) -> bool:
+        """Check if query is in first page."""
+        return self.page == 1
 
 
 class AvailablePriceOrderedQuery(Query):
